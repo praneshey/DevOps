@@ -1,0 +1,15 @@
+parameters:
+  - name: services
+    type: object
+    default: []
+
+steps:
+  - ${{ each service in parameters.services }}:
+      - script: |
+          echo "Building and pushing image for ${{ service.name }}"
+          docker build -t $(ACR_NAME)/${{ service.name }}:$(IMAGE_TAG) -t $(ACR_NAME)/${{ service.name }}:$(Build.BuildId) -f Dockerfile .
+          echo "Pushing to "$(ACR_NAME)/${{ service.name }}:$(IMAGE_TAG)
+          docker push $(ACR_NAME)/${{ service.name }}:$(IMAGE_TAG)
+          echo "Pushing to "$(ACR_NAME)/${{ service.name }}:$(Build.BuildId)
+          docker push $(ACR_NAME)/${{ service.name }}:$(Build.BuildId)
+        displayName: "Build and Push ${{ service.name }}"

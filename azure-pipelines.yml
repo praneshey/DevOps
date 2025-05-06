@@ -1,0 +1,78 @@
+trigger:
+  branches:
+    include:
+      - main
+      - master
+      - dev
+      - QA
+      - sandbox
+
+variables:
+  # Docker registry details
+  ACR_NAME: 'ceepsurvey.azurecr.io'
+  IMAGE_TAG: 'latest'
+
+stages:
+  - stage: Build_and_Push
+    displayName: Build and Push Docker Images
+    jobs:
+      - job: BuildPushJob
+        displayName: Build and Push
+        pool:
+          name: Default
+          vmImage: 'ubuntu-latest'
+        variables:
+          ACR_USERNAME: $(acrUsername)
+          ACR_PASSWORD: $(acrPassword)
+        steps:
+          - task: SonarQubePrepare@7
+            # condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              SonarQube: 'sonarqube'
+              scannerMode: 'cli'
+              configMode: 'manual'
+              cliProjectKey: 'CEEP-Platform_survey-module-service_ea199af7-2bc7-4e96-8c1f-ec579efa45be'
+              cliProjectName: 'survey-module-service'
+              cliSources: '.'
+          - template: templates/docker-build-push.yml
+            parameters:
+              services:
+                - name: api-gateway
+                  context: apps/api-gateway
+                - name: call-handling
+                  context: apps/call-handling
+                - name: call-trigger
+                  context: apps/call-trigger
+                - name: file-storage
+                  context: apps/file-storage
+                - name: platform-service
+                  context: apps/platform
+                - name: survey
+                  context: apps/survey
+                - name: tenant-user
+                  context: apps/tenant-user
+          - task: SonarQubeAnalyze@7
+            # condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              jdkversion: 'JAVA_HOME_17_X64'
+          - task: SonarQubePublish@7
+            # condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              pollingTimeoutSec: '300'
+  - stage: Push_Artifact
+    displayName: Push Build Artifact
+    jobs:
+      - job: PushArtifact
+        displayName: Publish build artifacts
+        pool:
+          name: Default
+          vmImage: 'ubuntu-latest'
+        variables:
+          ACR_USERNAME: $(acrUsername)
+          ACR_PASSWORD: $(acrPassword)
+        steps:
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.SourcesDirectory)'
+              ArtifactName: 'ceep-survey-app'
+              publishLocation: 'Container'
